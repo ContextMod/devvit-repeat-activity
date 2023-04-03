@@ -59,7 +59,7 @@ When not defined the bot defaults to `minWordCount: 1` (content must have at lea
 
 ## Use Processing as Reference
 
-When set to `true` then sets of repeated content found are filtered so only those matching the comment/post being filtered are returned.
+When set to `true` then sets of repeated content found are filtered so only those matching the comment/post being (by devvit trigger or from context menu) processed are returned.
 
 Defaults to `true`
 
@@ -68,3 +68,5 @@ Defaults to `true`
 A comparison test that determines if the bot is "triggered" by some number of repeated content found.
 
 EX `>= 3` => If 3 or more pieces of repeated content are found then the bot is triggered.
+
+Defaults to `>= 3`
