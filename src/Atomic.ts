@@ -11,6 +11,8 @@ export interface RepeatActivityReducer {
     allSets: RepeatActivityData[]
 }
 
+export type GroupedActivities = Map<string, Activity[][]>;
+
 export interface SummaryData {
     identifier: string,
     totalSets: number,
@@ -59,4 +61,10 @@ export interface GenericComparison extends HasDisplayText {
     extra?: string,
     groups?: Record<string, string>
     displayText: string,
+}
+
+export interface RepeatCheckResult {
+    triggered: boolean
+    result: string
+    summary: SummaryData[]
 }

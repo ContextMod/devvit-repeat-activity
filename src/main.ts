@@ -1,15 +1,13 @@
-import {Comment, Devvit, Post, RedditAPIClient} from '@devvit/public-api';
+import {Comment, ContextActionsBuilder, Devvit, Post, RedditAPIClient} from '@devvit/public-api';
 
-import {Metadata, PostSubmit,} from '@devvit/protos';
+import {Metadata, PostSubmit, CommentSubmit} from '@devvit/protos';
+import {Activity, CompareOptions, FAIL, PASS, RepeatCheckResult, SummaryData} from "./Atomic.js";
 import {
-    asPost,
-    comparisonTextOp,
-    isExternalUrlSubmission,
-    parseGenericValueComparison,
-    stringSameness,
-} from "./utils/utils.js";
-import {CompareOptions, FAIL, PASS, SummaryData} from "./Atomic.js";
-import {condenseActivities, extractApplicableGroupedActivities, getActivityIdentifier} from "./funcs.js";
+    condenseActivities,
+    extractApplicableGroupedActivities,
+    generateResult,
+    getActivityIdentifier
+} from "./funcs.js";
 
 const reddit = new RedditAPIClient();
 
@@ -19,6 +17,89 @@ const defaultCompareOptions: CompareOptions = {
     matchScore: 85,
     useSubmissionAsReference: true,
     threshold: '> 3'
+}
+
+Devvit.ContextAction.onGetActions(async () => {
+    return new ContextActionsBuilder()
+        .action({
+            actionId: 'removeIfRepeat',
+            name: 'Remove If Repeated',
+            description: 'Remove activity if repeated more than 3 times',
+            post: true,
+            comment: true,
+            moderator: true,
+        })
+        .action({
+            actionId: 'checkRepeat',
+            name: `Check For Repeats`,
+            description: 'Tells you largest of repeats found for this content',
+            post: true,
+            comment: true,
+            moderator: true,
+        })
+        .build();
+});
+
+Devvit.ContextAction.onAction(async (action, metadata) => {
+    let obj: Activity;
+    if (action.post !== undefined) {
+        obj = await reddit.getPostById(`t3_${action.post.id}` as string);
+    } else if (action.comment !== undefined) {
+        obj = await reddit.getCommentById(`t1_${action.comment.id}` as string);
+    } else {
+        return {success: false, message: 'Must be run on a Post or Comment'};
+    }
+    const results = await getRepeatCheckResult(obj);
+
+    switch (action.actionId) {
+        case 'checkRepeat':
+            return {
+                success: true,
+                message: results.result
+            }
+        case 'removeIfRepeat':
+            if (results.triggered) {
+                await reddit.remove(obj.id, false, metadata);
+            }
+            return {
+                success: true,
+                message: `${results.triggered} ? 'REMOVED => ' : 'NOT REMOVED => '${results.result}`
+            };
+        default:
+            return {success: false, message: 'Invalid action'};
+    }
+});
+
+const getRepeatCheckResult = async (item: Activity): Promise<RepeatCheckResult> => {
+
+    const opts: CompareOptions = {...defaultCompareOptions};
+
+    const posts = await reddit.getPostsByUser({
+        username: item.authorName,
+        sort: 'new',
+        pageSize: 100,
+        limit: 100
+    }).all();
+    const comments = await reddit.getCommentsByUser({
+        username: item.authorName,
+        sort: 'new',
+        pageSize: 100,
+        limit: 100
+    }).all();
+    const allActivities: Activity[] = [...posts, ...comments];
+
+    const hasSubmitted = allActivities.some(x => x.id === item.id);
+    if (!hasSubmitted) {
+        allActivities.push(item);
+    }
+
+    allActivities.sort((a, b) => {
+        return a.createdAt.getTime() - b.createdAt.getTime()
+    });
+
+    const condensedActivities = await condenseActivities(allActivities, opts);
+    const applicableGroupedActivities = extractApplicableGroupedActivities(condensedActivities, opts, opts.useSubmissionAsReference ? item : undefined)
+    return generateResult(applicableGroupedActivities, opts);
 }
 
 Devvit.addTrigger({
@@ -34,72 +115,38 @@ Devvit.addTrigger({
 
             const opts: CompareOptions = {...defaultCompareOptions};
 
-            const post = await reddit.getPostById(postv2.id);
-            const posts = await reddit.getPostsByUser({username: name, sort: 'new', pageSize: 100, limit: 100}).all();
+            const itemId = `t3_${postv2.id}`;
+            const item = await reddit.getPostById(itemId);
+            const results = await getRepeatCheckResult(item);
 
-            const hasSubmitted = posts.some(x => x.id === post.id);
-            if (!hasSubmitted) {
-                posts.push(post);
-            }
-
-            posts.sort((a, b) => {
-                return a.createdAt.getTime() - b.createdAt.getTime()
-            });
-
-            const condensedActivities = await condenseActivities(posts, opts);
-            const applicableGroupedActivities = extractApplicableGroupedActivities(condensedActivities, opts, opts.useSubmissionAsReference ? post : undefined)
-
-            const {operator, value: thresholdValue} = parseGenericValueComparison(opts.threshold);
-            const greaterThan = operator.includes('>');
-            let allLessThan = true;
-
-            const identifiersSummary: SummaryData[] = [];
-            for (let [key, value] of applicableGroupedActivities) {
-                const summaryData: SummaryData = {
-                    identifier: key,
-                    totalSets: value.length,
-                    totalTriggeringSets: 0,
-                    largestTrigger: 0,
-                    sets: [],
-                    setsMarkdown: [],
-                    triggeringSets: [],
-                    triggeringSetsMarkdown: [],
-                };
-                for (let set of value) {
-                    const test = comparisonTextOp(set.length, operator, thresholdValue);
-                    const md = `${getActivityIdentifier(set[0], 50)} ${set.length === 1 ? 'found once' : `repeated ${set.length}x`} in ${set.map(x => `${asPost(x) ? x.title : x.parentId}`).join(', ')}`;
-
-                    summaryData.sets.push(set);
-                    summaryData.largestTrigger = Math.max(summaryData.largestTrigger, set.length);
-                    summaryData.setsMarkdown.push(md);
-                    if (test) {
-                        summaryData.triggeringSets.push(set);
-                        summaryData.totalTriggeringSets++;
-                        summaryData.triggeringSetsMarkdown.push(md);
-                        // }
-                    } else if (!greaterThan) {
-                        allLessThan = false;
-                    }
-                }
-                identifiersSummary.push(summaryData);
-            }
-
-            const criteriaMet = identifiersSummary.filter(x => x.totalTriggeringSets > 0).length > 0 && (greaterThan || (!greaterThan && allLessThan));
-
-            const largestRepeat = identifiersSummary.reduce((acc, summ) => Math.max(summ.largestTrigger, acc), 0);
-            let result: string;
-            if (criteriaMet || greaterThan) {
-                result = `${criteriaMet ? PASS : FAIL} ${identifiersSummary.filter(x => x.totalTriggeringSets > 0).length} of ${identifiersSummary.length} unique items repeated ${opts.threshold} times, largest repeat: ${largestRepeat}`;
-            } else {
-                result = `${FAIL} Not all of ${identifiersSummary.length} unique items repeated ${opts.threshold} times, largest repeat: ${largestRepeat}`
-            }
-
-            console.log(result);
-
-            if (criteriaMet) {
-                const triggeringSummaries = identifiersSummary.filter(x => x.totalTriggeringSets > 0);
+            if (results.triggered) {
                 // remove activity
-                await reddit.remove(post.id, false, metadata);
+                await reddit.remove(itemId, false, metadata);
+            }
+        }
+    },
+});
+
+Devvit.addTrigger({
+    event: Devvit.Trigger.CommentSubmit,
+    async handler(request: CommentSubmit, metadata?: Metadata) {
+        const {
+            author: {
+                name
+            } = {},
+            comment: commentv2,
+        } = request;
+        if (name !== undefined && commentv2 !== undefined) {
+
+            const opts: CompareOptions = {...defaultCompareOptions};
+
+            const itemId = `t1_${commentv2.id}`;
+            const item = await reddit.getPostById(itemId);
+            const results = await getRepeatCheckResult(item);
+
+            if (results.triggered) {
+                // remove activity
+                await reddit.remove(itemId, false, metadata);
             }
         }
     },

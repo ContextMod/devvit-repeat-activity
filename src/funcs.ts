@@ -1,12 +1,19 @@
 import {
-    asPost,
+    asPost, comparisonTextOp,
     isExternalUrlSubmission,
-    isRedditMedia,
+    isRedditMedia, parseGenericValueComparison,
     parseUsableLinkIdentifier,
     stringSameness
 } from "./utils/utils.js";
 import {Comment, Post} from "@devvit/public-api";
-import {Activity, CompareOptions, RepeatActivityData, RepeatActivityReducer} from "./Atomic.js";
+import {
+    Activity,
+    CompareOptions, FAIL,
+    GroupedActivities, PASS,
+    RepeatActivityData,
+    RepeatActivityReducer,
+    SummaryData
+} from "./Atomic.js";
 
 const parseIdentifier = parseUsableLinkIdentifier();
 export const getActivityIdentifier = (activity: (Post | Comment), length = 200) => {
@@ -98,7 +105,7 @@ export const condenseActivities = (activities: (Post | Comment)[], opts: Compare
 
 }, Promise.resolve({openSets: [], allSets: []}));
 
-export const extractApplicableGroupedActivities = (condensedActivities: RepeatActivityReducer, opts: CompareOptions, item?: Activity) => {
+export const extractApplicableGroupedActivities = (condensedActivities: RepeatActivityReducer, opts: CompareOptions, item?: Activity): GroupedActivities => {
     const allRepeatSets = [...condensedActivities.allSets, ...condensedActivities.openSets];
 
     const identifierGroupedActivities = allRepeatSets.reduce((acc, repeatActivityData) => {
@@ -144,4 +151,57 @@ export const extractApplicableGroupedActivities = (condensedActivities: RepeatAc
     }
 
     return applicableGroupedActivities;
+}
+
+export const generateResult = (applicableGroupedActivities: GroupedActivities, opts: CompareOptions) => {
+    const {operator, value: thresholdValue} = parseGenericValueComparison(opts.threshold);
+    const greaterThan = operator.includes('>');
+    let allLessThan = true;
+
+    const identifiersSummary: SummaryData[] = [];
+    for (let [key, value] of applicableGroupedActivities) {
+        const summaryData: SummaryData = {
+            identifier: key,
+            totalSets: value.length,
+            totalTriggeringSets: 0,
+            largestTrigger: 0,
+            sets: [],
+            setsMarkdown: [],
+            triggeringSets: [],
+            triggeringSetsMarkdown: [],
+        };
+        for (let set of value) {
+            const test = comparisonTextOp(set.length, operator, thresholdValue);
+            const md = `${getActivityIdentifier(set[0], 50)} ${set.length === 1 ? 'found once' : `repeated ${set.length}x`} in ${set.map(x => `${asPost(x) ? x.title : x.parentId}`).join(', ')}`;
+
+            summaryData.sets.push(set);
+            summaryData.largestTrigger = Math.max(summaryData.largestTrigger, set.length);
+            summaryData.setsMarkdown.push(md);
+            if (test) {
+                summaryData.triggeringSets.push(set);
+                summaryData.totalTriggeringSets++;
+                summaryData.triggeringSetsMarkdown.push(md);
+                // }
+            } else if (!greaterThan) {
+                allLessThan = false;
+            }
+        }
+        identifiersSummary.push(summaryData);
+    }
+
+    const criteriaMet = identifiersSummary.filter(x => x.totalTriggeringSets > 0).length > 0 && (greaterThan || (!greaterThan && allLessThan));
+
+    const largestRepeat = identifiersSummary.reduce((acc, summ) => Math.max(summ.largestTrigger, acc), 0);
+    let result: string;
+    if (criteriaMet || greaterThan) {
+        result = `${criteriaMet ? PASS : FAIL} ${identifiersSummary.filter(x => x.totalTriggeringSets > 0).length} of ${identifiersSummary.length} unique items repeated ${opts.threshold} times, largest repeat: ${largestRepeat}`;
+    } else {
+        result = `${FAIL} Not all of ${identifiersSummary.length} unique items repeated ${opts.threshold} times, largest repeat: ${largestRepeat}`
+    }
+
+    return {
+        triggered: criteriaMet,
+        result,
+        summary: identifiersSummary
+    };
 }
