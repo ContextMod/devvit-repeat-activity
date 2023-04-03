@@ -1,11 +1,9 @@
 import {Comment, Post} from "@devvit/public-api";
-import {
-    PostV2,
-    CommentV2
-} from '@devvit/protos';
+import {PostV2} from '@devvit/protos';
 import calculateCosineSimilarity from "./StringMatching/CosineSimilarity.js";
 import levenSimilarity from "./StringMatching/levenSimilarity.js";
 import stringSimilarity from 'string-similarity';
+import {GenericComparison, StringComparisonOptions, StringOperator} from "../Atomic.js";
 
 /**
  * @see https://stackoverflow.com/a/61033353/1469797
@@ -72,14 +70,6 @@ export const asPost = (value: any): value is (Post | PostV2) => {
 //     return new Post(value.post as PostV2)
 // }
 
-export type PostType = Post | PostV2;
-export type CommentType = Comment | CommentV2;
-
-export interface StringComparisonOptions {
-    lengthWeight?: number,
-    transforms?: ((str: string) => string)[]
-}
-
 export const defaultStrCompareTransformFuncs = [
     // lower case to remove case sensitivity
     (str: string) => str.toLocaleLowerCase(),
@@ -136,22 +126,6 @@ export const stringSameness = (valA: string, valB: string, options?: StringCompa
 
 export const GENERIC_VALUE_COMPARISON = /^\s*(?<opStr>>|>=|<|<=)\s*(?<value>-?(?:\d+)(?:(?:(?:.|,)\d+)+)?)(?<extra>\s+.*)*$/
 export const GENERIC_VALUE_COMPARISON_URL = 'https://regexr.com/6vama';
-
-export type CompareValueOrPercent = string;
-export type StringOperator = '>' | '>=' | '<' | '<=';
-
-export interface GenericComparison extends HasDisplayText {
-    operator: StringOperator,
-    value: number,
-    isPercent: boolean,
-    extra?: string,
-    groups?: Record<string, string>
-    displayText: string,
-}
-
-export interface HasDisplayText {
-    displayText: string
-}
 
 export const parseGenericValueComparison = (val: string, options?: {
     reg?: RegExp
@@ -218,5 +192,3 @@ export const comparisonTextOp = (val1: number, strOp: string, val2: number): boo
     }
 }
 
-export const PASS = '✓';
-export const FAIL = '✘';
