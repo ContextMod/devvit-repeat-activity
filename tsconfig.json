@@ -1,3 +1,8 @@
 {
   "extends": "@devvit/tsconfig/base.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true
+  }
 }
