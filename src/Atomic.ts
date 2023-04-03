@@ -68,3 +68,8 @@ export interface RepeatCheckResult {
     result: string
     summary: SummaryData[]
 }
+
+export type CreateModNoteOpts = {
+    user: string
+    subreddit: string
+}

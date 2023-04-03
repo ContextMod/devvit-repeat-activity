@@ -11,7 +11,7 @@ import {
     CompareOptions, FAIL,
     GroupedActivities, PASS,
     RepeatActivityData,
-    RepeatActivityReducer,
+    RepeatActivityReducer, RepeatCheckResult,
     SummaryData
 } from "./Atomic.js";
 
@@ -153,7 +153,7 @@ export const extractApplicableGroupedActivities = (condensedActivities: RepeatAc
     return applicableGroupedActivities;
 }
 
-export const generateResult = (applicableGroupedActivities: GroupedActivities, opts: CompareOptions) => {
+export const generateResult = (applicableGroupedActivities: GroupedActivities, opts: CompareOptions): RepeatCheckResult => {
     const {operator, value: thresholdValue} = parseGenericValueComparison(opts.threshold);
     const greaterThan = operator.includes('>');
     let allLessThan = true;

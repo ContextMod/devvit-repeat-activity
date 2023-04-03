@@ -1,7 +1,7 @@
 import {ContextActionsBuilder, Devvit, RedditAPIClient} from '@devvit/public-api';
 
 import {CommentSubmit, ContextType, Metadata, PostSubmit, RedditObject} from '@devvit/protos';
-import {Activity, CompareOptions, RepeatCheckResult} from "./Atomic.js";
+import {Activity, CompareOptions, CreateModNoteOpts, RepeatCheckResult} from "./Atomic.js";
 import {condenseActivities, extractApplicableGroupedActivities, generateResult,} from "./funcs.js";
 
 const reddit = new RedditAPIClient();
@@ -38,10 +38,13 @@ Devvit.ContextAction.onGetActions(async () => {
 Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
     let obj: Activity;
 
+    let subredditName: string;
     if (action.context === ContextType.POST) {
         obj = await reddit.getPostById(`t3_${(action.post as RedditObject).id}` as string, metadata);
+        subredditName = (action.post as RedditObject).subreddit as string;
     } else if (action.context === ContextType.COMMENT) {
         obj = await reddit.getCommentById(`t1_${(action.comment as RedditObject).id}` as string, metadata);
+        subredditName = (action.comment as RedditObject).subreddit as string;
     } else {
         return {success: false, message: 'Must be run on a Post or Comment'};
     }
@@ -55,11 +58,11 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
             }
         case 'removeIfRepeat':
             if (results.triggered) {
-                await reddit.remove(obj.id, false, metadata);
+                await onTrigger(obj.id, results, {subreddit: subredditName as string, user: obj.authorName}, metadata);
             }
             return {
                 success: true,
-                message: `${results.triggered} ? 'REMOVED => ' : 'NOT REMOVED => '${results.result}`
+                message: `${results.triggered ? 'REMOVED => ' : 'NOT REMOVED => '} ${results.result}`
             };
         default:
             return {success: false, message: 'Invalid action'};
@@ -98,6 +101,13 @@ const getRepeatCheckResult = async (item: Activity, metadata?: Metadata): Promis
     return generateResult(applicableGroupedActivities, opts);
 }
 
+const onTrigger = async (itemId: string, results: RepeatCheckResult, modNoteOpts: CreateModNoteOpts, metadata?: Metadata) => {
+    await reddit.remove(itemId, false, metadata);
+    console.log(`REMOVING => ${itemId} in ${modNoteOpts.subreddit} by ${modNoteOpts.user} for ${results.result}`);
+    // TODO enable once this is fixed
+    //await reddit.addModNote({...modNoteOpts, note: results.result, redditId: itemId, label: "SPAM_WATCH"}, metadata);
+}
+
 Devvit.addTrigger({
     event: Devvit.Trigger.PostSubmit,
     async handler(request: PostSubmit, metadata?: Metadata) {
@@ -107,18 +117,15 @@ Devvit.addTrigger({
             } = {},
             post: postv2,
         } = request;
-        console.log(`Received OnPostSubmit event:\n${JSON.stringify(request)}`);
+        //console.log(`Received OnPostSubmit event:\n${JSON.stringify(request)}`);
         if (name !== undefined && postv2 !== undefined) {
 
-            //const opts: CompareOptions = {...defaultCompareOptions};
-
-            const itemId = `t3_${postv2.id}`;
+            const itemId = postv2.id;
             const item = await reddit.getPostById(itemId, metadata);
             const results = await getRepeatCheckResult(item, metadata);
 
             if (results.triggered) {
-                // remove activity
-                await reddit.remove(itemId, false, metadata);
+                await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
             }
         }
     },
@@ -133,18 +140,16 @@ Devvit.addTrigger({
             } = {},
             comment: commentv2,
         } = request;
-        console.log(`Received OnCommentSubmit event:\n${JSON.stringify(request)}`);
+
+        //console.log(`Received OnCommentSubmit event:\n${JSON.stringify(request)}`);
         if (name !== undefined && commentv2 !== undefined) {
 
-            //const opts: CompareOptions = {...defaultCompareOptions};
-
-            const itemId = `t1_${commentv2.id}`;
+            const itemId = commentv2.id;
             const item = await reddit.getCommentById(itemId, metadata);
             const results = await getRepeatCheckResult(item, metadata);
 
             if (results.triggered) {
-                // remove activity
-                await reddit.remove(itemId, false, metadata);
+                await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
             }
         }
     },
