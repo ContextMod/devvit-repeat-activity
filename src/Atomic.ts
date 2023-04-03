@@ -59,7 +59,7 @@ export interface GenericComparison extends HasDisplayText {
     value: number,
     isPercent: boolean,
     extra?: string,
-    groups?: Record<string, string>
+    groups?: Record<string, string> | undefined
     displayText: string,
 }
 

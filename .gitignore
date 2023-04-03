@@ -10,3 +10,4 @@ yarn-error.log*
 
 **/src/**/*.js
 **/src/**/*.map
+**/src/**/*.d.ts

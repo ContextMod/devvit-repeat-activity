@@ -1,13 +1,8 @@
-import {Comment, ContextActionsBuilder, Devvit, Post, RedditAPIClient} from '@devvit/public-api';
+import {ContextActionsBuilder, Devvit, RedditAPIClient} from '@devvit/public-api';
 
-import {Metadata, PostSubmit, CommentSubmit} from '@devvit/protos';
-import {Activity, CompareOptions, FAIL, PASS, RepeatCheckResult, SummaryData} from "./Atomic.js";
-import {
-    condenseActivities,
-    extractApplicableGroupedActivities,
-    generateResult,
-    getActivityIdentifier
-} from "./funcs.js";
+import {CommentSubmit, ContextType, Metadata, PostSubmit, RedditObject} from '@devvit/protos';
+import {Activity, CompareOptions, RepeatCheckResult} from "./Atomic.js";
+import {condenseActivities, extractApplicableGroupedActivities, generateResult,} from "./funcs.js";
 
 const reddit = new RedditAPIClient();
 
@@ -16,7 +11,7 @@ const defaultCompareOptions: CompareOptions = {
     gapAllowance: 0,
     matchScore: 85,
     useSubmissionAsReference: true,
-    threshold: '> 3'
+    threshold: '>= 3'
 }
 
 Devvit.ContextAction.onGetActions(async () => {
@@ -24,7 +19,7 @@ Devvit.ContextAction.onGetActions(async () => {
         .action({
             actionId: 'removeIfRepeat',
             name: 'Remove If Repeated',
-            description: 'Remove activity if repeated more than 3 times',
+            description: 'Remove activity if repeated 3 or more times',
             post: true,
             comment: true,
             moderator: true,
@@ -40,16 +35,17 @@ Devvit.ContextAction.onGetActions(async () => {
         .build();
 });
 
-Devvit.ContextAction.onAction(async (action, metadata) => {
+Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
     let obj: Activity;
-    if (action.post !== undefined) {
-        obj = await reddit.getPostById(`t3_${action.post.id}` as string);
-    } else if (action.comment !== undefined) {
-        obj = await reddit.getCommentById(`t1_${action.comment.id}` as string);
+
+    if (action.context === ContextType.POST) {
+        obj = await reddit.getPostById(`t3_${(action.post as RedditObject).id}` as string, metadata);
+    } else if (action.context === ContextType.COMMENT) {
+        obj = await reddit.getCommentById(`t1_${(action.comment as RedditObject).id}` as string, metadata);
     } else {
         return {success: false, message: 'Must be run on a Post or Comment'};
     }
-    const results = await getRepeatCheckResult(obj);
+    const results = await getRepeatCheckResult(obj, metadata);
 
     switch (action.actionId) {
         case 'checkRepeat':
@@ -70,7 +66,7 @@ Devvit.ContextAction.onAction(async (action, metadata) => {
     }
 });
 
-const getRepeatCheckResult = async (item: Activity): Promise<RepeatCheckResult> => {
+const getRepeatCheckResult = async (item: Activity, metadata?: Metadata): Promise<RepeatCheckResult> => {
 
     const opts: CompareOptions = {...defaultCompareOptions};
 
@@ -79,13 +75,13 @@ const getRepeatCheckResult = async (item: Activity): Promise<RepeatCheckResult> 
         sort: 'new',
         pageSize: 100,
         limit: 100
-    }).all();
+    }, metadata).all();
     const comments = await reddit.getCommentsByUser({
         username: item.authorName,
         sort: 'new',
         pageSize: 100,
         limit: 100
-    }).all();
+    }, metadata).all();
     const allActivities: Activity[] = [...posts, ...comments];
 
     const hasSubmitted = allActivities.some(x => x.id === item.id);
@@ -111,13 +107,14 @@ Devvit.addTrigger({
             } = {},
             post: postv2,
         } = request;
+        console.log(`Received OnPostSubmit event:\n${JSON.stringify(request)}`);
         if (name !== undefined && postv2 !== undefined) {
 
-            const opts: CompareOptions = {...defaultCompareOptions};
+            //const opts: CompareOptions = {...defaultCompareOptions};
 
             const itemId = `t3_${postv2.id}`;
-            const item = await reddit.getPostById(itemId);
-            const results = await getRepeatCheckResult(item);
+            const item = await reddit.getPostById(itemId, metadata);
+            const results = await getRepeatCheckResult(item, metadata);
 
             if (results.triggered) {
                 // remove activity
@@ -136,13 +133,14 @@ Devvit.addTrigger({
             } = {},
             comment: commentv2,
         } = request;
+        console.log(`Received OnCommentSubmit event:\n${JSON.stringify(request)}`);
         if (name !== undefined && commentv2 !== undefined) {
 
-            const opts: CompareOptions = {...defaultCompareOptions};
+            //const opts: CompareOptions = {...defaultCompareOptions};
 
             const itemId = `t1_${commentv2.id}`;
-            const item = await reddit.getPostById(itemId);
-            const results = await getRepeatCheckResult(item);
+            const item = await reddit.getPostById(itemId, metadata);
+            const results = await getRepeatCheckResult(item, metadata);
 
             if (results.triggered) {
                 // remove activity

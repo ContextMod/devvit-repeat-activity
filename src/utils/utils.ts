@@ -104,7 +104,8 @@ export const stringSameness = (valA: string, valB: string, options?: StringCompa
     // Cosine similarity
     const cosine = calculateCosineSimilarity(cleanA, cleanB) * 100;
     // Levenshtein distance
-    const [levenDistance, levenSimilarPercent] = levenSimilarity(cleanA, cleanB);
+    const ls = levenSimilarity(cleanA, cleanB);
+    const levenSimilarPercent = ls[1];
 
     // use shortest sentence for weight
     const weightScore = sentenceLengthWeight(shortest.length);
