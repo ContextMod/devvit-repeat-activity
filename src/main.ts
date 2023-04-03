@@ -10,7 +10,7 @@ const defaultCompareOptions: CompareOptions = {
     minWordCount: 1,
     gapAllowance: 0,
     matchScore: 85,
-    useSubmissionAsReference: true,
+    useProcessingAsReference: true,
     threshold: '>= 3'
 }
 
@@ -97,7 +97,7 @@ const getRepeatCheckResult = async (item: Activity, metadata?: Metadata): Promis
     });
 
     const condensedActivities = await condenseActivities(allActivities, opts);
-    const applicableGroupedActivities = extractApplicableGroupedActivities(condensedActivities, opts, opts.useSubmissionAsReference ? item : undefined)
+    const applicableGroupedActivities = extractApplicableGroupedActivities(condensedActivities, opts, opts.useProcessingAsReference ? item : undefined)
     return generateResult(applicableGroupedActivities, opts);
 }
 

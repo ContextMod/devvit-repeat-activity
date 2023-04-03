@@ -25,12 +25,33 @@ export interface SummaryData {
 }
 
 export interface CompareOptions {
+    /**
+     * The number of word-like tokens that must be found in a piece of content to consider it for comparison.
+     * */
     minWordCount: number
+    /**
+     * The number of non-repeat pieces of content allowed between "repeat" content where the bot will still count content as "still being repeated"
+     * */
     gapAllowance: number
+    /**
+     * A score of 0 to 100 for testing how similar to pieces of content are.
+     *
+     * 0 is completely different, 100 is identical
+     *
+     * A content is considered repeated if its score is at or above matchScore with the content it is being compared to
+     * */
     matchScore: number
 
-    useSubmissionAsReference: boolean
+    /**
+     * When set to true sets of repeated content found are filtered so only those matching the comment/post being filtered are returned
+     * */
+    useProcessingAsReference: boolean
 
+    /**
+     * A comparison string for testing how many pieces of content need to be repeated to trigger the bots
+     *
+     * EX: '>= 3' => '3 or more repeated pieces of content trigger the bot'
+     * */
     threshold: string
 }
 
