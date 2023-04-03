@@ -139,7 +139,7 @@ Devvit.addTrigger({
             //const opts: CompareOptions = {...defaultCompareOptions};
 
             const itemId = `t1_${commentv2.id}`;
-            const item = await reddit.getPostById(itemId, metadata);
+            const item = await reddit.getCommentById(itemId, metadata);
             const results = await getRepeatCheckResult(item, metadata);
 
             if (results.triggered) {
