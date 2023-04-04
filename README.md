@@ -18,13 +18,21 @@ Additionally, the bot runs on `Post Submit` and `Comment Submit` so it automatic
 
 # Configuration
 
-**TODO** Coded for but only possible once app/subreddit-level configuration is support by Devvit.
+### TODO 
+
+Coded for but only possible once app/subreddit-level configuration is support by Devvit.
+
+In the interim these defaults are provided:
+
+* On `Post Submit` => `threshold: '>= 5'
+* On `Comment Submit` => `threshold: '>= 4'`
+* On context-menu run => `threshold: '>= 3'`
 
 ## Gap Allowance
 
 `gapAllowance` determines how many **non-repeat Activities** are "allowed" between "in a row" submissions. `N` number of non-repeat activities will be thrown away during the count which allows checking for patterns with a bit of "fuzziness".
 
-When not defined `gapAllowance: 0` so all repeats must be truly consecutive.
+When not defined `gapAllowance: 1`.
 
 ## Match Score
 

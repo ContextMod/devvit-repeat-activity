@@ -8,7 +8,7 @@ const reddit = new RedditAPIClient();
 
 const defaultCompareOptions: CompareOptions = {
     minWordCount: 1,
-    gapAllowance: 0,
+    gapAllowance: 1,
     matchScore: 85,
     useProcessingAsReference: true,
     threshold: '>= 3'
@@ -72,10 +72,10 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
 /**
  * Responsible for fetching author's history, passing it to comparison logic, and returning comparison result
  * */
-const getRepeatCheckResult = async (item: Activity, metadata?: Metadata): Promise<RepeatCheckResult> => {
+const getRepeatCheckResult = async (item: Activity, userOpts: Partial<CompareOptions> = {}, metadata?: Metadata): Promise<RepeatCheckResult> => {
 
     // eventually these options will be controlled by app/subreddit-level configuration done by mods when app is installed
-    const opts: CompareOptions = {...defaultCompareOptions};
+    const opts: CompareOptions = {...defaultCompareOptions, ...userOpts};
 
     // get 1 page of author's posts and comments
     // TODO maybe replace with `/user/overview` api endpoint once it becomes supported?
@@ -137,7 +137,7 @@ Devvit.addTrigger({
 
             const itemId = postv2.id;
             const item = await reddit.getPostById(itemId, metadata);
-            const results = await getRepeatCheckResult(item, metadata);
+            const results = await getRepeatCheckResult(item, {threshold: '>= 5'}, metadata);
 
             if (results.triggered) {
                 await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
@@ -161,7 +161,7 @@ Devvit.addTrigger({
 
             const itemId = commentv2.id;
             const item = await reddit.getCommentById(itemId, metadata);
-            const results = await getRepeatCheckResult(item, metadata);
+            const results = await getRepeatCheckResult(item, {threshold: '>= 4'},metadata);
 
             if (results.triggered) {
                 await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
