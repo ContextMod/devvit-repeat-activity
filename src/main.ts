@@ -48,7 +48,7 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
     } else {
         return {success: false, message: 'Must be run on a Post or Comment'};
     }
-    const results = await getRepeatCheckResult(obj, metadata);
+    const results = await getRepeatCheckResult(obj, {},metadata);
 
     switch (action.actionId) {
         case 'checkRepeat':
