@@ -174,6 +174,19 @@
   resolved "https://registry.yarnpkg.com/@esbuild/win32-x64/-/win32-x64-0.17.15.tgz#c2e737f3a201ebff8e2ac2b8e9f246b397ad19b8"
   integrity sha512-DjDa9ywLUUmjhV2Y9wUTIF+1XsmuFGvZoCmOWkli1XcNAh5t25cc7fgsCx4Zi/Uurep3TTLyDiKATgGEg61pkA==
 
+"@foxxmd/common-libs@^0.1.1":
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/@foxxmd/common-libs/-/common-libs-0.1.1.tgz#3869b3b48c0f3c1f529164999691152160cc3ccc"
+  integrity sha512-TM0SyGH65y9nmx+2TbONu2TenYgiI4qeIJTP8Wo2WVfQptTg9SiehrQa4O5dl5wp2n82BwJ9qbEhWH5qodWdnQ==
+
+"@foxxmd/string-sameness@^0.1.3":
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/@foxxmd/string-sameness/-/string-sameness-0.1.3.tgz#8abbbaecad19b657488ebbc4e807f7b4aaef0e1f"
+  integrity sha512-b/NfSOBp6l1HxZxHol5hP3RLnJVkHt4iz/5gHsz1fK0JbTBPiGzI7FnbQrzJ3vpS8Oj8ClQpSTjuKX/6xjeX+A==
+  dependencies:
+    leven "^3.0.0"
+    string-similarity "^4.0.4"
+
 "@protobufjs/aspromise@^1.1.1", "@protobufjs/aspromise@^1.1.2":
   version "1.1.2"
   resolved "https://registry.npmjs.org/@protobufjs/aspromise/-/aspromise-1.1.2.tgz"
@@ -243,11 +256,6 @@
   version "18.15.11"
   resolved "https://registry.npmjs.org/@types/node/-/node-18.15.11.tgz"
   integrity sha512-E5Kwq2n4SbMzQOn6wnmBjuK9ouqlURrcZDVfbo9ftDDTFt3nk7ZKK4GMOzoYgnpQJKcxwQw+lGaBvvlMo0qN/Q==
-
-"@types/string-similarity@^4.0.0":
-  version "4.0.0"
-  resolved "https://registry.npmjs.org/@types/string-similarity/-/string-similarity-4.0.0.tgz"
-  integrity sha512-dMS4S07fbtY1AILG/RhuwmptmzK1Ql8scmAebOTJ/8iBtK/KI17NwGwKzu1uipjj8Kk+3mfPxum56kKZE93mzQ==
 
 "@vitest/expect@0.29.8":
   version "0.29.8"
@@ -534,10 +542,10 @@ jsonc-parser@^3.2.0:
   resolved "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-3.2.0.tgz"
   integrity sha512-gfFQZrcTc8CnKXp6Y4/CBT3fTc0OVuDofpre4aEeEpSBPV5X5v4+Vmx+8snU7RLPrNHPKSgLxGo9YuQzz20o+w==
 
-leven@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.npmjs.org/leven/-/leven-4.0.0.tgz"
-  integrity sha512-puehA3YKku3osqPlNuzGDUHq8WpwXupUg1V6NXdV38G+gr+gkBwFC8g1b/+YcIvp8gnqVIus+eJCH/eGsRmJNw==
+leven@^3.0.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/leven/-/leven-3.1.0.tgz#77891de834064cccba82ae7842bb6b14a13ed7f2"
+  integrity sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==
 
 local-pkg@^0.4.2:
   version "0.4.3"
@@ -752,7 +760,7 @@ streamsearch@^1.1.0:
 
 string-similarity@^4.0.4:
   version "4.0.4"
-  resolved "https://registry.npmjs.org/string-similarity/-/string-similarity-4.0.4.tgz"
+  resolved "https://registry.yarnpkg.com/string-similarity/-/string-similarity-4.0.4.tgz#42d01ab0b34660ea8a018da8f56a3309bb8b2a5b"
   integrity sha512-/q/8Q4Bl4ZKAPjj8WerIBJWALKkaPRfrvhfF8k/B23i4nzrlRj2/go1m90In7nG/3XDSbOo0+pu6RvCTM9RGMQ==
 
 string-width@^5.0.0:

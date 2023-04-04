@@ -1,18 +1,20 @@
 {
   "private": true,
   "name": "self-promotion",
-  "version": "0.0.0",
+  "version": "0.6.0",
   "license": "BSD-3-Clause",
   "type": "module",
   "dependencies": {
     "@devvit/public-api": "0.8.11",
-    "leven": "^4.0.0",
-    "string-similarity": "^4.0.4"
+    "@foxxmd/common-libs": "^0.1.1",
+    "@foxxmd/string-sameness": "^0.1.3"
   },
   "devDependencies": {
     "@devvit/tsconfig": "0.8.11",
-    "@types/string-similarity": "^4.0.0",
     "typescript": "4.9.3",
     "vitest": "^0.29.8"
+  },
+  "scripts": {
+    "build": "tsc"
   }
 }

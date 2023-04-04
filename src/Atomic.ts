@@ -1,13 +1,32 @@
 import {Comment, Post} from "@devvit/public-api";
 import {CommentV2, PostV2} from "@devvit/protos";
 
+/**
+ * A stateful object for keeping track of a set of consecutively found content that is the same
+ * */
 export interface RepeatActivityData {
+    /**
+     * A deterministic string id, built from activity content to identify the content of all Activities in the set
+     *
+     * NOTE: All content may not be *exactly* the same across all sets, based on stringSameness. The identifier is the first occurrence found.
+     * */
     identifier: string,
     sets: Activity[]
 }
 
 export interface RepeatActivityReducer {
+    /**
+     * All sets that could currently be added to (they are "on a roll")
+     *
+     * That is, they have activity that was JUST seen and the next iteration would be considered consecutive (within gapAllowance tolerance) if the identifier is the same
+     * */
     openSets: RepeatActivityData[]
+
+    /**
+     * All sets that are current CLOSED. Their identifiers have not been seen recently (within gapAllowance tolerance)
+     *
+     * Sets in this list cannot be added to.
+     * */
     allSets: RepeatActivityData[]
 }
 
@@ -59,30 +78,6 @@ export type PostType = Post | PostV2;
 export type CommentType = Comment | CommentV2;
 
 export type Activity = Post | Comment;
-
-export interface StringComparisonOptions {
-    lengthWeight?: number,
-    transforms?: ((str: string) => string)[]
-}
-
-export type CompareValueOrPercent = string;
-
-export interface HasDisplayText {
-    displayText: string
-}
-
-export const PASS = '✓';
-export const FAIL = '✘';
-export type StringOperator = '>' | '>=' | '<' | '<=';
-
-export interface GenericComparison extends HasDisplayText {
-    operator: StringOperator,
-    value: number,
-    isPercent: boolean,
-    extra?: string,
-    groups?: Record<string, string> | undefined
-    displayText: string,
-}
 
 export interface RepeatCheckResult {
     triggered: boolean

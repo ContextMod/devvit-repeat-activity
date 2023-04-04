@@ -69,10 +69,16 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
     }
 });
 
+/**
+ * Responsible for fetching author's history, passing it to comparison logic, and returning comparison result
+ * */
 const getRepeatCheckResult = async (item: Activity, metadata?: Metadata): Promise<RepeatCheckResult> => {
 
+    // eventually these options will be controlled by app/subreddit-level configuration done by mods when app is installed
     const opts: CompareOptions = {...defaultCompareOptions};
 
+    // get 1 page of author's posts and comments
+    // TODO maybe replace with `/user/overview` api endpoint once it becomes supported?
     const posts = await reddit.getPostsByUser({
         username: item.authorName,
         sort: 'new',
@@ -85,19 +91,28 @@ const getRepeatCheckResult = async (item: Activity, metadata?: Metadata): Promis
         pageSize: 100,
         limit: 100
     }, metadata).all();
+
     const allActivities: Activity[] = [...posts, ...comments];
 
+    // in past experiences with public api sometimes the currently processing activity is not returned in the user's history listing (db consistency? acid is hard)
+    // so make sure it is included if we don't find it in history
     const hasSubmitted = allActivities.some(x => x.id === item.id);
     if (!hasSubmitted) {
         allActivities.push(item);
     }
 
+    // sort all activities by creation time in descending order (newest activity first)
     allActivities.sort((a, b) => {
         return a.createdAt.getTime() - b.createdAt.getTime()
     });
 
+    // iterates through all activities and builds up lists of consecutive activities that all match a given identifier
     const condensedActivities = await condenseActivities(allActivities, opts);
+    // consolidates all those lists under unique identifiers (we can see each instance (list) of a given repeated content by repeated content identifier)
+    // and then filters these consolidated lists so only those that match the currently processing Post/Comment content identifier are left
     const applicableGroupedActivities = extractApplicableGroupedActivities(condensedActivities, opts, opts.useProcessingAsReference ? item : undefined)
+    // finally, compares the test condition (threshold) against remaining consolidated lists to see if any match
+    // IE threshold: '>= 3' => triggered if any consolidated list has 3 or Activities in it (which means content was repeated 3 or more times)
     return generateResult(applicableGroupedActivities, opts);
 }
 
