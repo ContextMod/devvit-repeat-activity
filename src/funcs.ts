@@ -299,12 +299,39 @@ export const msgPrefix = (triggered: boolean, willRemove: boolean) => {
 }
 
 export interface GetUserInputOptions {
+    /**
+     * Useful if more than one field has the same key
+     * */
     fieldTypeHint?: ConfigFieldType
+    /**
+     * numberField always default to 0. Treat 0 as undefined (no input)
+     *
+     * @default true
+     * */
     zeroAsUndefined?: boolean
+    /**
+     * textField and textArea always default to an empty string. Treat empty string as undefined (no input)
+     *
+     * @default true
+     * */
     emptyStringAsUndefined?: boolean
+    /**
+     * Value to return when form does not include field with the given name, or field value is "undefined"
+     *
+     * @default undefined
+     * */
     onUndefined?: any
 }
 
+/**
+ * Gets fields with the given name and parses their response to a normalized value
+ *
+ * * text fields always have response wrapped in double quotes: "My response" => removes double quotes and returns plain string
+ * * boolean field response is a string "true" or "false" => parses and returns a true boolean value
+ * * number fields response is a string number and always returns "0" if no user input => parses as true number value and optionally treats 0 as undefined
+ *
+ * return a tuple of [cleaned field value, raw found field data]
+ * */
 export const getUserInputFieldAndValue = <T>(action: ContextActionRequest, fieldName: string, opts?: GetUserInputOptions): [T | undefined, ConfigField | undefined] => {
     const {
         onUndefined = undefined,
@@ -346,6 +373,9 @@ export const getUserInputFieldAndValue = <T>(action: ContextActionRequest, field
     }
 }
 
+/**
+ * Uses getUserInputFieldAndValue() to parse field and returns only cleaned value as a convenience
+ * */
 export const getUserInputValue = <T>(action: ContextActionRequest, fieldName: string, opts?: GetUserInputOptions): T | undefined => {
     return getUserInputFieldAndValue(action, fieldName, opts)[0] as T | undefined;
 }
