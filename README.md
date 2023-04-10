@@ -11,22 +11,28 @@ If it is triggered it removes the content and (TODO) adds a modnote with found r
 
 Provides these content menu actions on comments/posts:
 
-* **Remove If Repeated** => Remove activity if repeated X or more times (based on `threshold`)
-* **Check For Repeats** => Runs through repeat detection and displays a toast stating how many times content was repeated
+* **Check If Activity is Repeated** => Runs through repeat detection and displays a toast on whether Activity meets threshold
+  * Optionally remove Activity if threshold is met
+
+Provides these content menu actions on subreddit:
+
+* **Check for Repeated Activities in Modqueue** (TODO, need devvit endpoint to be implemented) Iterates modqueue and runs repeated activity check
+* **Check for Repeated Activities in Unmoderated** (TODO, need devvit endpoint to be implemented) Iterates umoderated queue and runs repeated activity check
+* **Repeated Activities Default Settings** Set subreddit defaults
 
 Additionally, the bot runs on `Post Submit` and `Comment Submit` so it automatically checks all new posts/comments.
 
 # Configuration
 
-### TODO 
+Set with a subreddit-level context menu action:
 
-Coded for but only possible once app/subreddit-level configuration is support by Devvit.
-
-In the interim these defaults are provided:
-
-* On `Post Submit` => `threshold: '>= 5'
-* On `Comment Submit` => `threshold: '>= 4'`
-* On context-menu run => `threshold: '>= 3'`
+* `Default Threshold` - DEFAULT threshold used => Remove Activity if it is repeated X or more times (default `3`)
+* `Ignore Mods` - Don't check Activities created by Mods (default true)
+* `Ignore Automod` - Don't check Activities created by Automod (default true)
+* `Enable auto-remove for New Comments?` - Automatically run on new Comments
+  * `New Comment Threshold` - If different than default
+* `Enable auto-remove for New Submissions?` - Automatically run on new Submission
+    * `New Comment Threshold` - If different than default
 
 ## Gap Allowance
 
