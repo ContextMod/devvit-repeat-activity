@@ -1,21 +1,20 @@
-import {
-    asPost,
-    isExternalUrlSubmission,
-    isRedditMedia,
-    parseUsableLinkIdentifier
-} from "./utils/utils.js";
+import {asPost, isExternalUrlSubmission, isRedditMedia, parseUsableLinkIdentifier} from "./utils/utils.js";
 import {Comment, Post} from "@devvit/public-api";
 import {
     Activity,
     CompareOptions,
     GroupedActivities,
     RepeatActivityData,
-    RepeatActivityReducer, RepeatCheckResult,
+    RepeatActivityReducer,
+    RepeatCheckResult,
     SummaryData
 } from "./Atomic.js";
 import {comparisonTextOp, parseGenericValueComparison} from "@foxxmd/common-libs/functions";
 import {FAIL, PASS} from "@foxxmd/common-libs/atomic";
 import {stringSameness} from "@foxxmd/string-sameness";
+// import {ConfigField, ConfigFieldType} from "@devvit/protos/types/devvit/actor/user_configurable/user_configurable.js";
+// import {ContextActionRequest} from "@devvit/protos/types/devvit/actor/reddit/context_action.js";
+import {ConfigField, ConfigFieldType, ContextActionRequest, ContextType, RedditObject} from '@devvit/protos';
 
 const parseIdentifier = parseUsableLinkIdentifier();
 /**
@@ -290,4 +289,83 @@ export const generateResult = (applicableGroupedActivities: GroupedActivities, o
         result,
         summary: identifiersSummary
     };
+}
+
+export const msgPrefix = (triggered: boolean, willRemove: boolean) => {
+    if(willRemove) {
+        return  triggered ? 'REMOVED =>' : 'NOT REMOVED =>';
+    }
+    return triggered ? 'TRIGGERED =>' : 'NOT TRIGGERED =>';
+}
+
+export interface GetUserInputOptions {
+    fieldTypeHint?: ConfigFieldType
+    zeroAsUndefined?: boolean
+    emptyStringAsUndefined?: boolean
+    onUndefined?: any
+}
+
+export const getUserInputFieldAndValue = <T>(action: ContextActionRequest, fieldName: string, opts?: GetUserInputOptions): [T | undefined, ConfigField | undefined] => {
+    const {
+        onUndefined = undefined,
+        zeroAsUndefined = true,
+        emptyStringAsUndefined = true,
+        fieldTypeHint,
+    } = opts || {};
+
+    if (action.userInput === undefined || action.userInput.fields.length === 0) {
+        return onUndefined;
+    }
+    let validFields = action.userInput.fields.filter(x => x.key.toLowerCase() === fieldName.toLowerCase());
+    if (validFields.length > 1 && fieldTypeHint !== undefined) {
+        validFields = validFields.filter(x => x.fieldType === fieldTypeHint);
+    }
+    if (validFields.length === 0) {
+        return [undefined, undefined];
+    }
+    const field = validFields[0] as ConfigField;
+
+    switch (field.fieldType) {
+        case ConfigFieldType.NUMBER:
+            const num = Number.parseInt(field.response);
+            if (num === 0 && zeroAsUndefined) {
+                return [undefined, field]
+            }
+            return [num as T, field];
+        case ConfigFieldType.STRING:
+        case ConfigFieldType.PARAGRAPH:
+            const cleanString = field.response.replace(/^"/, '').replace(/"$/, ''); // remove double quotes at beginning and end of string
+            if (cleanString === '' && emptyStringAsUndefined) {
+                return [undefined, field];
+            }
+            return [cleanString as T, field];
+        case ConfigFieldType.BOOLEAN:
+            return [(field.response === 'true') as T, field];
+        case ConfigFieldType.UNRECOGNIZED:
+            return [field.response as T, field]
+    }
+}
+
+export const getUserInputValue = <T>(action: ContextActionRequest, fieldName: string, opts?: GetUserInputOptions): T | undefined => {
+    return getUserInputFieldAndValue(action, fieldName, opts)[0] as T | undefined;
+}
+
+export const authorIsModFromContext = (action: ContextActionRequest) => {
+    if (action.context === ContextType.POST) {
+        return (action.post as RedditObject).canModPost;
+    } else if (action.context === ContextType.COMMENT) {
+        return (action.comment as RedditObject).canModPost;
+    } else if (action.context === ContextType.SUBREDDIT) {
+        return action.subreddit?.userIsModerator;
+    }
+    return false;
+}
+
+export const authorNameFromContext = (action: ContextActionRequest) => {
+    if (action.context === ContextType.POST) {
+        return (action.post as RedditObject).author;
+    } else if (action.context === ContextType.COMMENT) {
+        return (action.comment as RedditObject).author;
+    }
+    return undefined;
 }

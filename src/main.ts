@@ -1,71 +1,185 @@
-import {ContextActionsBuilder, Devvit, RedditAPIClient} from '@devvit/public-api';
+import {ConfigFormBuilder, ContextActionsBuilder, Devvit, KeyValueStorage, RedditAPIClient} from '@devvit/public-api';
 
 import {CommentSubmit, ContextType, Metadata, PostSubmit, RedditObject} from '@devvit/protos';
-import {Activity, CompareOptions, CreateModNoteOpts, RepeatCheckResult} from "./Atomic.js";
-import {condenseActivities, extractApplicableGroupedActivities, generateResult,} from "./funcs.js";
+import {
+    Activity,
+    CompareOptions,
+    CreateModNoteOpts, DEFAULT_COM_THRESHOLD, DEFAULT_COM_TRIGGER,
+    DEFAULT_IGNORE_AUTOMOD,
+    DEFAULT_IGNORE_MODS, DEFAULT_SUB_THRESHOLD, DEFAULT_SUB_TRIGGER,
+    DEFAULT_THRESHOLD,
+    RepeatCheckResult
+} from "./Atomic.js";
+import {
+    authorIsModFromContext, authorNameFromContext,
+    condenseActivities,
+    extractApplicableGroupedActivities,
+    generateResult,
+    getUserInputValue,
+    msgPrefix,
+} from "./funcs.js";
 
 const reddit = new RedditAPIClient();
+const kv = new KeyValueStorage();
 
 const defaultCompareOptions: CompareOptions = {
     minWordCount: 1,
     gapAllowance: 1,
     matchScore: 85,
     useProcessingAsReference: true,
-    threshold: '>= 3'
+    threshold: `>= ${DEFAULT_THRESHOLD}`
 }
 
 Devvit.ContextAction.onGetActions(async () => {
+    const newSubTrigger = await kv.get<boolean>('newSubTrigger');
+    const newSubThreshold = await kv.get<number>('newSubThreshold');
+    const newCommentTrigger = await kv.get<boolean>('newCommTrigger');
+    const newCommentThreshold = await kv.get<number>('newCommThreshold');
+    const defaultThreshold = await kv.get<number>('defaultThreshold');
+    const ignoreMods = await kv.get<boolean>('ignoreMods');
+    const ignoreAutomod = await kv.get<boolean>('ignoreAutomod');
     return new ContextActionsBuilder()
         .action({
-            actionId: 'removeIfRepeat',
-            name: 'Remove If Repeated',
-            description: 'Remove activity if repeated 3 or more times',
+            actionId: 'checkRepeat',
+            name: `Check If Activity is Repeated`,
+            description: 'Check if Activity Repeated X or more times (and optionally remove it)',
             post: true,
             comment: true,
             moderator: true,
+            userInput: new ConfigFormBuilder()
+                .numberField('threshold', 'Check if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                .booleanField('remove', 'Remove if Threshold Met?', false)
+                .build()
         })
         .action({
-            actionId: 'checkRepeat',
-            name: `Check For Repeats`,
-            description: 'Tells you largest of repeats found for this content',
-            post: true,
-            comment: true,
-            moderator: true,
+            actionId: 'checkRepeatModqueue',
+            name: `Check for Repeated Activities in Modqueue`,
+            description: 'Run Repeated Activity check for all Activities in Modqueue',
+            subreddit: true,
+            userInput: new ConfigFormBuilder()
+                .numberField('threshold', 'Check if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                .booleanField('remove', 'Remove if Threshold Met?', false)
+                .build()
+        })
+        .action({
+            actionId: 'checkRepeatUnmoderated',
+            name: `Check for Repeated Activities in Unmoderated`,
+            description: 'Run Repeated Activity check for all Activities in Unmoderated queue',
+            subreddit: true,
+            userInput: new ConfigFormBuilder()
+                .numberField('threshold', 'Check if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                .booleanField('remove', 'Remove if Threshold Met?', false)
+                .build()
+        })
+        .action({
+            actionId: 'setSettings',
+            name: `Repeated Activities Default Settings`,
+            description: 'Set subreddit-wide settings for Repeat Activity behavior',
+            subreddit: true,
+            userInput: new ConfigFormBuilder()
+                .numberField('defaultThreshold', '(DEFAULT) Remove Activity if it is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                .booleanField('ignoreMods', 'Ignore Activities Made by Automod?', ignoreAutomod ?? DEFAULT_IGNORE_AUTOMOD)
+                .booleanField('ignoreAutomod', 'Ignore Activities Made by Mods?', ignoreMods ?? DEFAULT_IGNORE_MODS)
+                .booleanField('newCommTrigger', 'Enable auto-remove for New Comments?', newCommentTrigger ?? DEFAULT_COM_TRIGGER)
+                .numberField('newCommThreshold', 'Remove new Comment if repeated X or more times (uses DEFAULT if 0)', newCommentThreshold ?? DEFAULT_COM_THRESHOLD)
+                .booleanField('newSubTrigger', 'Enable auto-remove for New Submissions?', newSubTrigger ?? DEFAULT_SUB_TRIGGER)
+                .numberField('newSubThreshold', 'Remove new Submission if repeated X or more times (uses DEFAULT if 0)', newSubThreshold ?? DEFAULT_SUB_THRESHOLD)
+                .build()
         })
         .build();
 });
 
 Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
-    let obj: Activity;
 
-    let subredditName: string;
-    if (action.context === ContextType.POST) {
-        obj = await reddit.getPostById(`t3_${(action.post as RedditObject).id}` as string, metadata);
-        subredditName = (action.post as RedditObject).subreddit as string;
-    } else if (action.context === ContextType.COMMENT) {
-        obj = await reddit.getCommentById(`t1_${(action.comment as RedditObject).id}` as string, metadata);
-        subredditName = (action.comment as RedditObject).subreddit as string;
+    if (action.actionId === 'setSettings') {
+        const settings = {
+            newSubTrigger: getUserInputValue<boolean>(action, 'newSubTrigger'),
+            newSubThreshold: getUserInputValue<number>(action, 'newSubThreshold'),
+            newCommTrigger: getUserInputValue<boolean>(action, 'newCommTrigger'),
+            newCommThreshold: getUserInputValue<number>(action, 'newCommThreshold'),
+            defaultThreshold: getUserInputValue<number>(action, 'defaultThreshold'),
+            ignoreMods: getUserInputValue<boolean>(action, 'ignoreMods'),
+            ignoreAutomod: getUserInputValue<boolean>(action, 'ignoreAutomod')
+        };
+
+        for(const [k, v] of Object.entries(settings)) {
+            if(v !== undefined) {
+                await kv.put(k, v);
+            }
+        }
+
+        return {success: true, message: 'Subreddit defaults set! Please refresh the page to see new settings and be aware changes take a few moments to take effect.'};
     } else {
-        return {success: false, message: 'Must be run on a Post or Comment'};
-    }
-    const results = await getRepeatCheckResult(obj, {},metadata);
 
-    switch (action.actionId) {
-        case 'checkRepeat':
-            return {
-                success: true,
-                message: results.result
-            }
-        case 'removeIfRepeat':
-            if (results.triggered) {
-                await onTrigger(obj.id, results, {subreddit: subredditName as string, user: obj.authorName}, metadata);
-            }
-            return {
-                success: true,
-                message: `${results.triggered ? 'REMOVED => ' : 'NOT REMOVED => '} ${results.result}`
-            };
-        default:
-            return {success: false, message: 'Invalid action'};
+        let subredditName: string | undefined = undefined;
+        if (action.context === ContextType.POST) {
+            subredditName = (action.post as RedditObject).subreddit as string;
+        } else if (action.context === ContextType.COMMENT) {
+            subredditName = (action.comment as RedditObject).subreddit as string;
+        } else if (action.context === ContextType.SUBREDDIT) {
+            subredditName = (action.subreddit?.name) as string;
+        }
+        if (subredditName === undefined) {
+            return {success: false, message: 'Could not determine subreddit?'};
+        }
+
+        const defaultThreshold: number = (await kv.get('defaultThreshold')) ?? DEFAULT_THRESHOLD;
+
+        const threshold: number = getUserInputValue<number>(action, 'threshold') ?? defaultThreshold,
+            removeOnTrigger: boolean = getUserInputValue<boolean>(action, 'remove') ?? false;
+
+        switch (action.actionId) {
+            case 'checkRepeat':
+
+                const ignoreMods = (await kv.get('ignoreMods')) ?? true;
+                const ignoreAutomod = (await kv.get('ignoreAutomod')) ?? true;
+
+                if(ignoreMods && authorIsModFromContext(action)) {
+                    return {
+                        success: true,
+                        message: `Will not process Activity because its Author is a Mod`
+                    }
+                } else if(ignoreAutomod && (authorNameFromContext(action) ?? '').includes('automoderator')) {
+                    return {
+                        success: true,
+                        message: `Will not process Activity because its Author is Automoderator`
+                    }
+                }
+
+                let obj: Activity;
+
+                if (action.context === ContextType.POST) {
+                    obj = await reddit.getPostById(`t3_${(action.post as RedditObject).id}` as string, metadata);
+                } else if (action.context === ContextType.COMMENT) {
+                    obj = await reddit.getCommentById(`t1_${(action.comment as RedditObject).id}` as string, metadata);
+                } else {
+                    return {success: false, message: 'Must be run on Post or Comment'};
+                }
+
+                const results = await getRepeatCheckResult(obj, {
+                    threshold: `>= ${threshold}`
+                }, metadata);
+
+                if (removeOnTrigger) {
+                    await onTrigger(obj.id, results, {
+                        subreddit: subredditName as string,
+                        user: obj.authorName
+                    }, metadata);
+                }
+                return {
+                    success: true,
+                    message: `${msgPrefix(results.triggered, removeOnTrigger)} ${results.result}`
+                }
+            case 'checkRepeatModqueue':
+            case 'checkRepeatUnmoderated':
+                const queue = action.actionId.toLowerCase().includes('modqueue') ? 'modqueue' : 'unmoderated';
+                return {
+                    success: false,
+                    message: `Fetching ${queue} not yet supported by devvit :(`
+                }
+            default:
+                return {success: false, message: 'Invalid action'};
+        }
     }
 });
 
@@ -126,21 +240,25 @@ const onTrigger = async (itemId: string, results: RepeatCheckResult, modNoteOpts
 Devvit.addTrigger({
     event: Devvit.Trigger.PostSubmit,
     async handler(request: PostSubmit, metadata?: Metadata) {
-        const {
-            author: {
-                name
-            } = {},
-            post: postv2,
-        } = request;
-        //console.log(`Received OnPostSubmit event:\n${JSON.stringify(request)}`);
-        if (name !== undefined && postv2 !== undefined) {
+        const shouldTrigger: boolean = (await kv.get('newSubTrigger')) ?? DEFAULT_SUB_TRIGGER;
+        if(shouldTrigger) {
+            const {
+                author: {
+                    name
+                } = {},
+                post: postv2,
+            } = request;
+            //console.log(`Received OnPostSubmit event:\n${JSON.stringify(request)}`);
+            if (name !== undefined && postv2 !== undefined) {
 
-            const itemId = postv2.id;
-            const item = await reddit.getPostById(itemId, metadata);
-            const results = await getRepeatCheckResult(item, {threshold: '>= 5'}, metadata);
+                const newSubThreshold = (await kv.get<number>('newSubThreshold')) ?? DEFAULT_SUB_THRESHOLD;
+                const itemId = postv2.id;
+                const item = await reddit.getPostById(itemId, metadata);
+                const results = await getRepeatCheckResult(item, {threshold: `>= ${newSubThreshold}`}, metadata);
 
-            if (results.triggered) {
-                await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
+                if (results.triggered) {
+                    await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
+                }
             }
         }
     },
@@ -149,22 +267,26 @@ Devvit.addTrigger({
 Devvit.addTrigger({
     event: Devvit.Trigger.CommentSubmit,
     async handler(request: CommentSubmit, metadata?: Metadata) {
-        const {
-            author: {
-                name
-            } = {},
-            comment: commentv2,
-        } = request;
+        const shouldTrigger: boolean = (await kv.get('newComTrigger')) ?? DEFAULT_COM_TRIGGER;
+        if(shouldTrigger) {
+            const {
+                author: {
+                    name
+                } = {},
+                comment: commentv2,
+            } = request;
 
-        //console.log(`Received OnCommentSubmit event:\n${JSON.stringify(request)}`);
-        if (name !== undefined && commentv2 !== undefined) {
+            //console.log(`Received OnCommentSubmit event:\n${JSON.stringify(request)}`);
+            if (name !== undefined && commentv2 !== undefined) {
 
-            const itemId = commentv2.id;
-            const item = await reddit.getCommentById(itemId, metadata);
-            const results = await getRepeatCheckResult(item, {threshold: '>= 4'},metadata);
+                const newCommentThreshold = (await kv.get<number>('newCommThreshold')) ?? DEFAULT_COM_THRESHOLD;
+                const itemId = commentv2.id;
+                const item = await reddit.getCommentById(itemId, metadata);
+                const results = await getRepeatCheckResult(item, {threshold: `>= ${newCommentThreshold}`},metadata);
 
-            if (results.triggered) {
-                await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
+                if (results.triggered) {
+                    await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
+                }
             }
         }
     },
