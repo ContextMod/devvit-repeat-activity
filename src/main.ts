@@ -111,15 +111,17 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
         return {success: true, message: 'Subreddit defaults set! Please refresh the page to see new settings and be aware changes take a few moments to take effect.'};
     } else {
 
-        let subredditName: string | undefined = undefined;
+        // TODO .subreddit was available but no longer on prod? Would be better to use name rather than Id
+        let subredditIdentifier: string | undefined = undefined;
+        console.log(`ContextType: ${action.context}`);
         if (action.context === ContextType.POST) {
-            subredditName = (action.post as RedditObject).subreddit as string;
+            subredditIdentifier = (action.post as RedditObject).subredditId as string;
         } else if (action.context === ContextType.COMMENT) {
-            subredditName = (action.comment as RedditObject).subreddit as string;
+            subredditIdentifier = (action.comment as RedditObject).subredditId as string;
         } else if (action.context === ContextType.SUBREDDIT) {
-            subredditName = (action.subreddit?.name) as string;
+            subredditIdentifier = (action.subreddit?.id) as string;
         }
-        if (subredditName === undefined) {
+        if (subredditIdentifier === undefined) {
             return {success: false, message: 'Could not determine subreddit?'};
         }
 
@@ -162,7 +164,7 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
 
                 if (removeOnTrigger) {
                     await onTrigger(obj.id, results, {
-                        subreddit: subredditName as string,
+                        subreddit: subredditIdentifier as string,
                         user: obj.authorName
                     }, metadata);
                 }
@@ -233,7 +235,7 @@ const getRepeatCheckResult = async (item: Activity, userOpts: Partial<CompareOpt
 const onTrigger = async (itemId: string, results: RepeatCheckResult, modNoteOpts: CreateModNoteOpts, metadata?: Metadata) => {
     await reddit.remove(itemId, false, metadata);
     console.log(`REMOVING => ${itemId} in ${modNoteOpts.subreddit} by ${modNoteOpts.user} for ${results.result}`);
-    // TODO enable once this is fixed
+    // TODO enable once this is fixed and ensure 'subreddit' is actually name, not Id
     //await reddit.addModNote({...modNoteOpts, note: results.result, redditId: itemId, label: "SPAM_WATCH"}, metadata);
 }
 
