@@ -5,34 +5,55 @@ Based on [ContextMod's Repeat Activity Rule](https://github.com/FoxxMD/context-m
 
 # Overview
 
-The bot will check for patterns of repetition in an Author's Submission/Comment history.
+The bot will check for patterns of repetition in an Author's Submission/Comment history and can optionally remove and/or add modnote if a threshold is crossed.
 
-If it is triggered it removes the content and (TODO) adds a modnote with found results.
+
+## Use-case/Scenario
+
+User A has made 3 comments/submissions with the text `Check out MyCoolApp for free! http://my.link` in their recent history. User A then makes a comment/submission in your subreddit with the same text.
+
+A moderator runs the action `Check If Activity is Repeated` from the context menu on this piece of content and specifies how many "repeated" pieces of content triggers the bot:
+  * The bot checks User A's history to see if the content has been repeated X times or more
+  * Then it displays a message to the moderator with its findings: `4x repeats found; PASSES test >= 3`
+    * If specified by the mod, the content is removed
+    * If specified by the mod, a Modnote is added to User A with the same findings displayed by the bot
+
+Default settings for all inputs can be found in the subreddit-level `Repeated Activities Default Settings` context menu action. Within the settings the bot can also be enabled to automatically run on all new comments/submissions.
+
+## Actions
 
 Provides these content menu actions on comments/posts:
 
 * **Check If Activity is Repeated** => Runs through repeat detection and displays a toast on whether Activity meets threshold
   * Optionally remove Activity if threshold is met
+  * Optionally add a Modnote if threshold is met
 
 Provides these content menu actions on subreddit:
 
-* **Check for Repeated Activities in Modqueue** (TODO, need devvit endpoint to be implemented) Iterates modqueue and runs repeated activity check
-* **Check for Repeated Activities in Unmoderated** (TODO, need devvit endpoint to be implemented) Iterates umoderated queue and runs repeated activity check
 * **Repeated Activities Default Settings** Set subreddit defaults
 
-Additionally, the bot runs on `Post Submit` and `Comment Submit` so it automatically checks all new posts/comments.
+Additionally, the bot can run on `Post Submit` and `Comment Submit` so it automatically checks all new posts/comments.
 
 # Configuration
 
+## On Subreddit
+
 Set with a subreddit-level context menu action:
 
-* `Default Threshold` - DEFAULT threshold used => Remove Activity if it is repeated X or more times (default `3`)
 * `Ignore Mods` - Don't check Activities created by Mods (default true)
 * `Ignore Automod` - Don't check Activities created by Automod (default true)
-* `Enable auto-remove for New Comments?` - Automatically run on new Comments
-  * `New Comment Threshold` - If different than default
-* `Enable auto-remove for New Submissions?` - Automatically run on new Submission
-    * `New Comment Threshold` - If different than default
+* Action Defaults
+  * `Default Threshold` - DEFAULT threshold used => Remove Activity if it is repeated X or more times (default `3`)
+  * `Remove Option Checked?` - Should the "Remove on trigger" for actions always be checked?
+  * `Modnote Option Checked?` - Should the "Add Modnote on trigger" for actions always be checked?
+* On New Comments...
+  * `New Comment Threshold` - Threshold to use when checking new comments
+  * `Remove if New Comment Threshold Met?` - Remove new comments if threshold is met?
+  * `Modnote if New Comment Threshold Met?` - Remove new comments if threshold is met?
+* On New Submissions...
+  * `New New Submission Threshold` - Threshold to use when checking new submission
+  * `Remove if New Submission Threshold Met?` - Remove new submission if threshold is met?
+  * `Modnote if New Submission Threshold Met?` - Remove new submission if threshold is met?
 
 ## Gap Allowance
 
