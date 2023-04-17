@@ -4,20 +4,21 @@ import {CommentSubmit, ContextType, Metadata, PostSubmit, RedditObject} from '@d
 import {
     Activity,
     CompareOptions,
-    CreateModNoteOpts, DEFAULT_COM_THRESHOLD, DEFAULT_COM_TRIGGER,
+    CreateModNoteOpts, DEFAULT_COM_THRESHOLD, DEFAULT_COM_REMOVE_TRIGGER,
     DEFAULT_IGNORE_AUTOMOD,
-    DEFAULT_IGNORE_MODS, DEFAULT_SUB_THRESHOLD, DEFAULT_SUB_TRIGGER,
+    DEFAULT_IGNORE_MODS, DEFAULT_SUB_THRESHOLD, DEFAULT_SUB_REMOVE_TRIGGER,
     DEFAULT_THRESHOLD,
-    RepeatCheckResult
+    RepeatCheckResult, DEFAULT_COM_MODNOTE_TRIGGER, DEFAULT_SUB_MODNOTE_TRIGGER
 } from "./Atomic.js";
 import {
     authorIsModFromContext, authorNameFromContext,
     condenseActivities,
     extractApplicableGroupedActivities,
     generateResult,
-    getUserInputValue,
-    msgPrefix,
+    getUserInputValue
 } from "./funcs.js";
+import {parseRedditFullname} from "@foxxmd/common-libs/functions";
+import {PASS} from "@foxxmd/common-libs/atomic";
 
 const reddit = new RedditAPIClient();
 const kv = new KeyValueStorage();
@@ -31,59 +32,74 @@ const defaultCompareOptions: CompareOptions = {
 }
 
 Devvit.ContextAction.onGetActions(async () => {
-    const newSubTrigger = await kv.get<boolean>('newSubTrigger');
+    const newSubRemove = await kv.get<boolean>('newSubRemove');
+    const newSubModnote = await kv.get<boolean>('newSubModnote');
     const newSubThreshold = await kv.get<number>('newSubThreshold');
-    const newCommentTrigger = await kv.get<boolean>('newCommTrigger');
+    const newCommentRemove = await kv.get<boolean>('newCommRemove');
+    const newCommentModnote = await kv.get<boolean>('newCommModnote');
     const newCommentThreshold = await kv.get<number>('newCommThreshold');
+
     const defaultThreshold = await kv.get<number>('defaultThreshold');
+    const defaultRemove = await kv.get<boolean>('defaultRemove');
+    const defaultModnote = await kv.get<boolean>('defaultModnote');
+
     const ignoreMods = await kv.get<boolean>('ignoreMods');
     const ignoreAutomod = await kv.get<boolean>('ignoreAutomod');
+
     return new ContextActionsBuilder()
         .action({
             actionId: 'checkRepeat',
             name: `Check If Activity is Repeated`,
-            description: 'Check if Activity Repeated X or more times (and optionally remove it)',
+            description: `Detect if the content of the current Activity is repeated in Author's recent history`,
             post: true,
             comment: true,
             moderator: true,
             userInput: new ConfigFormBuilder()
-                .numberField('threshold', 'Check if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
-                .booleanField('remove', 'Remove if Threshold Met?', false)
+                .numberField('threshold', 'Trigger if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                .booleanField('remove', 'Remove if Threshold Met?', defaultRemove ?? false)
+                .booleanField('modnote', 'Add Modnote if Threshold Met?', defaultModnote ?? false)
                 .build()
         })
-        .action({
-            actionId: 'checkRepeatModqueue',
-            name: `Check for Repeated Activities in Modqueue`,
-            description: 'Run Repeated Activity check for all Activities in Modqueue',
-            subreddit: true,
-            userInput: new ConfigFormBuilder()
-                .numberField('threshold', 'Check if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
-                .booleanField('remove', 'Remove if Threshold Met?', false)
-                .build()
-        })
-        .action({
-            actionId: 'checkRepeatUnmoderated',
-            name: `Check for Repeated Activities in Unmoderated`,
-            description: 'Run Repeated Activity check for all Activities in Unmoderated queue',
-            subreddit: true,
-            userInput: new ConfigFormBuilder()
-                .numberField('threshold', 'Check if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
-                .booleanField('remove', 'Remove if Threshold Met?', false)
-                .build()
-        })
+        // TODO enable once unmoderated/modqueue endpoints are supported
+        /*        .action({
+                    actionId: 'checkRepeatModqueue',
+                    name: `Check for Repeated Activities in Modqueue`,
+                    description: 'Run Repeated Activity check for all Activities in Modqueue',
+                    subreddit: true,
+                    userInput: new ConfigFormBuilder()
+                        .numberField('threshold', 'Check if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                        .booleanField('remove', 'Remove if Threshold Met?', defaultRemove)
+                        .booleanField('modnote', 'Modnote if Threshold Met?', defaultModnote)
+                        .build()
+                })
+                .action({
+                    actionId: 'checkRepeatUnmoderated',
+                    name: `Check for Repeated Activities in Unmoderated`,
+                    description: 'Run Repeated Activity check for all Activities in Unmoderated queue',
+                    subreddit: true,
+                    userInput: new ConfigFormBuilder()
+                        .numberField('threshold', 'Check if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                        .booleanField('remove', 'Remove if Threshold Met?', defaultRemove)
+                        .booleanField('modnote', 'Modnote if Threshold Met?', defaultModnote)
+                        .build()
+                })*/
         .action({
             actionId: 'setSettings',
             name: `Repeated Activities Default Settings`,
             description: 'Set subreddit-wide settings for Repeat Activity behavior',
             subreddit: true,
             userInput: new ConfigFormBuilder()
-                .numberField('defaultThreshold', '(DEFAULT) Remove Activity if it is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                .numberField('defaultThreshold', '(Default) THRESHOLD -- Trigger if Activity is repeated X or more times', defaultThreshold ?? DEFAULT_THRESHOLD)
+                .booleanField('defaultRemove', '(Default) Remove Option checked?', defaultRemove ?? false)
+                .booleanField('defaultModnote', '(Default) Modnote Option checked?', defaultModnote ?? false)
                 .booleanField('ignoreMods', 'Ignore Activities Made by Automod?', ignoreAutomod ?? DEFAULT_IGNORE_AUTOMOD)
                 .booleanField('ignoreAutomod', 'Ignore Activities Made by Mods?', ignoreMods ?? DEFAULT_IGNORE_MODS)
-                .booleanField('newCommTrigger', 'Enable auto-remove for New Comments?', newCommentTrigger ?? DEFAULT_COM_TRIGGER)
-                .numberField('newCommThreshold', 'Remove new Comment if repeated X or more times (uses DEFAULT if 0)', newCommentThreshold ?? DEFAULT_COM_THRESHOLD)
-                .booleanField('newSubTrigger', 'Enable auto-remove for New Submissions?', newSubTrigger ?? DEFAULT_SUB_TRIGGER)
-                .numberField('newSubThreshold', 'Remove new Submission if repeated X or more times (uses DEFAULT if 0)', newSubThreshold ?? DEFAULT_SUB_THRESHOLD)
+                .numberField('newCommThreshold', 'New Comment THRESHOLD', newCommentThreshold ?? DEFAULT_COM_THRESHOLD)
+                .booleanField('newCommRemove', '(New Comment) Remove if THRESHOLD met?', newCommentRemove ?? DEFAULT_COM_REMOVE_TRIGGER)
+                .booleanField('newCommModnote', '(New Comment) Add modnote if THRESHOLD met?', newCommentModnote ?? DEFAULT_COM_MODNOTE_TRIGGER)
+                .numberField('newSubThreshold', 'New Submission THRESHOLD', newSubThreshold ?? DEFAULT_SUB_THRESHOLD)
+                .booleanField('newSubRemove', '(New Submission) Remove if THRESHOLD met?', newSubRemove ?? DEFAULT_SUB_REMOVE_TRIGGER)
+                .booleanField('newSubModnote', '(New Submission) Add modnote if THRESHOLD met?', newSubModnote ?? DEFAULT_SUB_MODNOTE_TRIGGER)
                 .build()
         })
         .build();
@@ -93,27 +109,33 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
 
     if (action.actionId === 'setSettings') {
         const settings = {
-            newSubTrigger: getUserInputValue<boolean>(action, 'newSubTrigger'),
+            newSubRemove: getUserInputValue<boolean>(action, 'newSubRemove'),
+            newSubModnote: getUserInputValue<boolean>(action, 'newSubModnote'),
             newSubThreshold: getUserInputValue<number>(action, 'newSubThreshold'),
-            newCommTrigger: getUserInputValue<boolean>(action, 'newCommTrigger'),
+            newCommRemove: getUserInputValue<boolean>(action, 'newCommRemove'),
+            newCommModnote: getUserInputValue<boolean>(action, 'newCommModnote'),
             newCommThreshold: getUserInputValue<number>(action, 'newCommThreshold'),
             defaultThreshold: getUserInputValue<number>(action, 'defaultThreshold'),
+            defaultRemove: getUserInputValue<number>(action, 'defaultRemove'),
+            defaultModnote: getUserInputValue<number>(action, 'defaultModnote'),
             ignoreMods: getUserInputValue<boolean>(action, 'ignoreMods'),
             ignoreAutomod: getUserInputValue<boolean>(action, 'ignoreAutomod')
         };
 
-        for(const [k, v] of Object.entries(settings)) {
-            if(v !== undefined) {
+        for (const [k, v] of Object.entries(settings)) {
+            if (v !== undefined) {
                 await kv.put(k, v);
             }
         }
 
-        return {success: true, message: 'Subreddit defaults set! Please refresh the page to see new settings and be aware changes take a few moments to take effect.'};
+        return {
+            success: true,
+            message: 'Subreddit defaults set! Please refresh the page to see new settings and be aware changes take a few moments to take effect.'
+        };
     } else {
 
         // TODO .subreddit was available but no longer on prod? Would be better to use name rather than Id
         let subredditIdentifier: string | undefined = undefined;
-        console.log(`ContextType: ${action.context}`);
         if (action.context === ContextType.POST) {
             subredditIdentifier = (action.post as RedditObject).subredditId as string;
         } else if (action.context === ContextType.COMMENT) {
@@ -125,10 +147,13 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
             return {success: false, message: 'Could not determine subreddit?'};
         }
 
-        const defaultThreshold: number = (await kv.get('defaultThreshold')) ?? DEFAULT_THRESHOLD;
+        const defaultThreshold: number = (await kv.get<number>('defaultThreshold')) ?? DEFAULT_THRESHOLD;
+        const defaultRemove: boolean = (await kv.get<boolean>('defaultRemove')) ?? false;
+        const defaultModnote: boolean = (await kv.get<boolean>('defaultModnote')) ?? false;
 
         const threshold: number = getUserInputValue<number>(action, 'threshold') ?? defaultThreshold,
-            removeOnTrigger: boolean = getUserInputValue<boolean>(action, 'remove') ?? false;
+            removeOnTrigger: boolean = getUserInputValue<boolean>(action, 'remove') ?? defaultRemove,
+            modnote: boolean = getUserInputValue<boolean>(action, 'modnote') ?? defaultModnote;
 
         switch (action.actionId) {
             case 'checkRepeat':
@@ -136,12 +161,12 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
                 const ignoreMods = (await kv.get('ignoreMods')) ?? true;
                 const ignoreAutomod = (await kv.get('ignoreAutomod')) ?? true;
 
-                if(ignoreMods && authorIsModFromContext(action)) {
+                if (ignoreMods && authorIsModFromContext(action)) {
                     return {
                         success: true,
                         message: `Will not process Activity because its Author is a Mod`
                     }
-                } else if(ignoreAutomod && (authorNameFromContext(action) ?? '').includes('automoderator')) {
+                } else if (ignoreAutomod && (authorNameFromContext(action) ?? '').includes('automoderator')) {
                     return {
                         success: true,
                         message: `Will not process Activity because its Author is Automoderator`
@@ -158,19 +183,51 @@ Devvit.ContextAction.onAction(async (action, metadata?: Metadata) => {
                     return {success: false, message: 'Must be run on Post or Comment'};
                 }
 
-                const results = await getRepeatCheckResult(obj, {
-                    threshold: `>= ${threshold}`
-                }, metadata);
+                let results: RepeatCheckResult;
 
-                if (removeOnTrigger) {
-                    await onTrigger(obj.id, results, {
-                        subreddit: subredditIdentifier as string,
-                        user: obj.authorName
+                try {
+                    results = await getRepeatCheckResult(obj, {
+                        threshold: `>= ${threshold}`
                     }, metadata);
+                } catch (e) {
+                    console.error(e);
+                    return {
+                        success: false,
+                        result: `Error occurred while running repeat logic: ${(e as Error).message}`
+                    }
                 }
+
+                let actionRes: TriggerResult = {remove: false, modnote: false};
+                const actions = [];
+
+                if (results.triggered) {
+                    actionRes = await onTrigger(obj.id, results, {
+                        remove: removeOnTrigger,
+                        modnote: modnote ? {
+                            subreddit: subredditIdentifier as string,
+                            user: obj.authorName
+                        } : undefined
+                    }, metadata);
+
+                    if(actionRes.remove !== undefined) {
+                        if(actionRes.remove === true) {
+                            actions.push(`REMOVE: ${PASS}`);
+                        } else if(typeof actionRes.remove === 'string') {
+                            actions.push(`REMOVE: Error :(`);
+                        }
+                    }
+                    if(actionRes.modnote !== undefined) {
+                        if(actionRes.modnote === true) {
+                            actions.push(`NOTE: ${PASS}`);
+                        } else if(typeof actionRes.modnote === 'string') {
+                            actions.push(`NOTE: Error :(`);
+                        }
+                    }
+                }
+
                 return {
                     success: true,
-                    message: `${msgPrefix(results.triggered, removeOnTrigger)} ${results.result}`
+                    message: `${results.result}${actions.length > 0 ? ' | ' : ''}${actions.join(' | ')}`
                 }
             case 'checkRepeatModqueue':
             case 'checkRepeatUnmoderated':
@@ -232,18 +289,79 @@ const getRepeatCheckResult = async (item: Activity, userOpts: Partial<CompareOpt
     return generateResult(applicableGroupedActivities, opts);
 }
 
-const onTrigger = async (itemId: string, results: RepeatCheckResult, modNoteOpts: CreateModNoteOpts, metadata?: Metadata) => {
-    await reddit.remove(itemId, false, metadata);
-    console.log(`REMOVING => ${itemId} in ${modNoteOpts.subreddit} by ${modNoteOpts.user} for ${results.result}`);
-    // TODO enable once this is fixed and ensure 'subreddit' is actually name, not Id
-    //await reddit.addModNote({...modNoteOpts, note: results.result, redditId: itemId, label: "SPAM_WATCH"}, metadata);
+interface TriggerOptions {
+    remove?: boolean,
+    modnote?: CreateModNoteOpts | undefined
+}
+
+interface TriggerResult {
+    remove: boolean | string,
+    modnote: boolean | string
+}
+
+const onTrigger = async (itemId: string, results: RepeatCheckResult, opts: TriggerOptions, metadata?: Metadata): Promise<TriggerResult> => {
+    const {
+        remove = false,
+        modnote
+    } = opts;
+    const actions = [];
+    if (remove) {
+        actions.push('REMOVE');
+    }
+    if (modnote !== undefined) {
+        actions.push('MODNOTE');
+    }
+    const result: TriggerResult = {
+        remove: false,
+        modnote: false
+    };
+
+    if (actions.length === 0) {
+        return result;
+    }
+
+    console.log(`${actions.join('/')} ${itemId} => ${results.triggered ? results.summary[0].identifier : 'N/A'} => ${results.result}`);
+
+    if (remove) {
+        try {
+            await reddit.remove(itemId, false, metadata);
+            result.remove = true;
+        } catch (e) {
+            console.warn(`Error occurred while removing ${itemId}`);
+            console.error(e);
+            result.remove = (e as Error).message;
+        }
+    }
+
+    if (modnote !== undefined) {
+        try {
+            const thing = parseRedditFullname(modnote.subreddit);
+            if (thing !== undefined) {
+                const subreddit = await reddit.getSubredditById(thing.val, metadata);
+                modnote.subreddit = subreddit.name;
+            }
+            await reddit.addModNote({
+                ...modnote,
+                note: results.result,
+                redditId: itemId,
+                label: "SPAM_WATCH"
+            }, metadata);
+            result.modnote = true;
+        } catch (e) {
+            console.warn(`Error occurred while adding modnote for ${itemId}`);
+            console.error(e);
+            result.modnote = (e as Error).message
+        }
+    }
+    return result;
 }
 
 Devvit.addTrigger({
     event: Devvit.Trigger.PostSubmit,
     async handler(request: PostSubmit, metadata?: Metadata) {
-        const shouldTrigger: boolean = (await kv.get('newSubTrigger')) ?? DEFAULT_SUB_TRIGGER;
-        if(shouldTrigger) {
+        const shouldRemove: boolean = (await kv.get<boolean>('newSubRemove')) ?? DEFAULT_SUB_REMOVE_TRIGGER;
+        const shouldModnote: boolean = (await kv.get<boolean>('newSubModnote')) ?? DEFAULT_SUB_MODNOTE_TRIGGER;
+        if (shouldRemove || shouldModnote) {
             const {
                 author: {
                     name
@@ -259,7 +377,10 @@ Devvit.addTrigger({
                 const results = await getRepeatCheckResult(item, {threshold: `>= ${newSubThreshold}`}, metadata);
 
                 if (results.triggered) {
-                    await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
+                    await onTrigger(itemId, results, {
+                        remove: shouldRemove,
+                        modnote: shouldModnote ? {subreddit: request.subreddit?.name as string, user: name} : undefined
+                    }, metadata);
                 }
             }
         }
@@ -269,8 +390,9 @@ Devvit.addTrigger({
 Devvit.addTrigger({
     event: Devvit.Trigger.CommentSubmit,
     async handler(request: CommentSubmit, metadata?: Metadata) {
-        const shouldTrigger: boolean = (await kv.get('newComTrigger')) ?? DEFAULT_COM_TRIGGER;
-        if(shouldTrigger) {
+        const shouldRemove = (await kv.get<boolean>('newCommRemove')) ?? DEFAULT_COM_REMOVE_TRIGGER;
+        const shouldModnote = (await kv.get<boolean>('newCommModnote')) ?? DEFAULT_COM_MODNOTE_TRIGGER;
+        if (shouldRemove || shouldModnote) {
             const {
                 author: {
                     name
@@ -284,10 +406,13 @@ Devvit.addTrigger({
                 const newCommentThreshold = (await kv.get<number>('newCommThreshold')) ?? DEFAULT_COM_THRESHOLD;
                 const itemId = commentv2.id;
                 const item = await reddit.getCommentById(itemId, metadata);
-                const results = await getRepeatCheckResult(item, {threshold: `>= ${newCommentThreshold}`},metadata);
+                const results = await getRepeatCheckResult(item, {threshold: `>= ${newCommentThreshold}`}, metadata);
 
                 if (results.triggered) {
-                    await onTrigger(itemId, results, {subreddit: request.subreddit?.name as string, user: name}, metadata);
+                    await onTrigger(itemId, results, {
+                        remove: shouldRemove,
+                        modnote: shouldModnote ? {subreddit: request.subreddit?.name as string, user: name} : undefined
+                    }, metadata);
                 }
             }
         }

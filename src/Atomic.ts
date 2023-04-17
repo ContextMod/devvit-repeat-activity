@@ -90,9 +90,12 @@ export type CreateModNoteOpts = {
     subreddit: string
 }
 export const DEFAULT_THRESHOLD = 3;
-export const DEFAULT_SUB_TRIGGER = false;
+export const DEFAULT_SUB_REMOVE_TRIGGER = false;
+export const DEFAULT_SUB_MODNOTE_TRIGGER = false;
 export const DEFAULT_SUB_THRESHOLD = 3;
-export const DEFAULT_COM_TRIGGER = false;
+export const DEFAULT_COM_REMOVE_TRIGGER = false;
+export const DEFAULT_COM_MODNOTE_TRIGGER = false;
 export const DEFAULT_COM_THRESHOLD = 3;
 export const DEFAULT_IGNORE_MODS = true;
 export const DEFAULT_IGNORE_AUTOMOD = true;
+

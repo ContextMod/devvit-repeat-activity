@@ -10,7 +10,7 @@ import {
     SummaryData
 } from "./Atomic.js";
 import {comparisonTextOp, parseGenericValueComparison} from "@foxxmd/common-libs/functions";
-import {FAIL, PASS} from "@foxxmd/common-libs/atomic";
+// import {FAIL, PASS} from "@foxxmd/common-libs/atomic";
 import {stringSameness} from "@foxxmd/string-sameness";
 // import {ConfigField, ConfigFieldType} from "@devvit/protos/types/devvit/actor/user_configurable/user_configurable.js";
 // import {ContextActionRequest} from "@devvit/protos/types/devvit/actor/reddit/context_action.js";
@@ -278,24 +278,19 @@ export const generateResult = (applicableGroupedActivities: GroupedActivities, o
     // find largest repeat among all identifiers
     const largestRepeat = identifiersSummary.reduce((acc, summ) => Math.max(summ.largestTrigger, acc), 0);
     let result: string;
-    if (criteriaMet || greaterThan) {
-        result = `${criteriaMet ? PASS : FAIL} ${identifiersSummary.filter(x => x.totalTriggeringSets > 0).length} of ${identifiersSummary.length} unique items repeated ${opts.threshold} times, largest repeat: ${largestRepeat}`;
-    } else {
-        result = `${FAIL} Not all of ${identifiersSummary.length} unique items repeated ${opts.threshold} times, largest repeat: ${largestRepeat}`
-    }
+    // making result size terser to fit in current devvit toast character limit restrictions
+    // if (criteriaMet || greaterThan) {
+    //     result = `${criteriaMet ? PASS : FAIL} ${identifiersSummary.filter(x => x.totalTriggeringSets > 0).length} of ${identifiersSummary.length} unique items repeated ${opts.threshold} times, largest repeat: ${largestRepeat}`;
+    // } else {
+    //     result = `${FAIL} Not all of ${identifiersSummary.length} unique items repeated ${opts.threshold} times, largest repeat: ${largestRepeat}`
+    // }
+    result = `${largestRepeat}x repeats found; ${criteriaMet ? 'PASSES' : 'DOES NOT PASS'} test ${opts.threshold}`;
 
     return {
         triggered: criteriaMet,
         result,
         summary: identifiersSummary
     };
-}
-
-export const msgPrefix = (triggered: boolean, willRemove: boolean) => {
-    if(willRemove) {
-        return  triggered ? 'REMOVED =>' : 'NOT REMOVED =>';
-    }
-    return triggered ? 'TRIGGERED =>' : 'NOT TRIGGERED =>';
 }
 
 export interface GetUserInputOptions {
