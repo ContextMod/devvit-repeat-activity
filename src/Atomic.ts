@@ -62,6 +62,11 @@ export interface CompareOptions {
     matchScore: number
 
     /**
+     * Should removed Activities be counted?
+     * */
+    keepRemoved: boolean
+
+    /**
      * When set to true sets of repeated content found are filtered so only those matching the comment/post being filtered are returned
      * */
     useProcessingAsReference: boolean
@@ -98,4 +103,5 @@ export const DEFAULT_COM_MODNOTE_TRIGGER = false;
 export const DEFAULT_COM_THRESHOLD = 3;
 export const DEFAULT_IGNORE_MODS = true;
 export const DEFAULT_IGNORE_AUTOMOD = true;
-
+export const DEFAULT_IGNORE_APPROVED = true;
+export const DEFAULT_KEEP_REMOVED = false;
